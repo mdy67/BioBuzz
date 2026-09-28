@@ -10,6 +10,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
+import org.firstinspires.ftc.teamcode.Utils.DTSQUID;
 import org.firstinspires.ftc.teamcode.Utils.Utils;
 
 import java.util.ArrayList;
@@ -134,7 +135,7 @@ public class Drivetrain {
         head = robotPose.getHeading(AngleUnit.DEGREES);
     }
 
-    public void goToPoint(double x, double y, double heading, double power, boolean predBrake, double xyThreshold, double hThreshold) {
+    public void strafeSquidHeading(double x, double y, double heading, double power, double xyThreshold, double hThreshold) {
         targetPose = new Pose2D(DistanceUnit.INCH, x, y, AngleUnit.DEGREES, heading);
         state = State.GO_TO_POINT;
         if (targetPose!= lastTarget) {
@@ -169,11 +170,12 @@ public class Drivetrain {
 
     }
 
-    private double akP = 0.08;
-    private double akD = 0.01;
-    private double hkP = 0.14;
-    private double hkD = 0.03;
+    public static double akP = 0.08;
+    public static double akD = 0.01;
+    public static double hkP = 0.14;
+    public static double hkD = 0.03;
 
+    DTSQUID xSquid = new DTSQUID(akP, akD);
 
 
 

@@ -1,9 +1,14 @@
-goals:
-- pid /squid for target velocity as opposed to target position
+
 - predictive braking for stopping on a dime calibrated with velocity and tuned
-- 3 point splines
-- self tuning features?
-- ability to scale all DT power to 1 for max speed; TBD how thresholding works
+- 3 point splines / bezier curves?
+- self tuning features
+- ability to scale all DT power to 1 for max speed; TBD
 
 - not doing config auto routines with an opmode bc that shi is too diddy
--
+
+- strafeConstantHeading
+- strafeSquidHeading
+- driveToPoint (degs/s limit)
+- arcConstantHeading
+- arcLinearHeading
+- arcTangentHeading
