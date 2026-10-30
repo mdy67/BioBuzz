@@ -18,8 +18,8 @@ public class Intake {
     public DcMotor transferMotor;
 
     public double intakePower = 0.7;
-    public double transferIntakePower = 0.4;
-    public double transferPower = 0.4; // Adjustable transfer power
+    public double transferIntakePower = 0.25;
+    public double transferPower = 0.3; // Transfer power for shooting
 
     public Intake(HardwareMap hardwareMap) {
         intakeMotor = hardwareMap.get(DcMotor.class, "intake");
@@ -44,7 +44,7 @@ public class Intake {
         switch (state) {
             case INTAKING:
                 intakeMotor.setPower(intakePower);
-                transferMotor.setPower(-transferIntakePower * 0.6);
+                transferMotor.setPower(-transferIntakePower);
                 break;
 
             case OUTTAKING:

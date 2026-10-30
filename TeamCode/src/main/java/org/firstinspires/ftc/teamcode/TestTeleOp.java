@@ -48,7 +48,9 @@ public class TestTeleOp extends OpMode {
     @Override
     public void init() {
         robot = new Robot(hardwareMap);
-        robot.turret.setHoodPosition(0.5); // Default hood position
+        robot.shooter.useVelocityPID = true; // Velocity PID RPM mode enabled
+        robot.shooter.setTargetRPM(0.0);
+        robot.turret.setHoodPosition(1.0); // Default hood position
     }
 
     @Override
@@ -66,12 +68,12 @@ public class TestTeleOp extends OpMode {
                 turn * speedMultiplier
         );
 
-        // 2. Shooter power adjustment (Dpad Up / Dpad Down in increments of 0.01 with holding rate limiter)
+        // 2. Shooter Target RPM adjustment (Dpad Up / Dpad Down in increments of 100 RPM with holding rate limiter)
         if (dpadUpLimiter.shouldTrigger(gamepad1.dpad_up)) {
-            robot.shooter.adjustPower(0.01);
+            robot.shooter.adjustRPM(50.0);
         }
         if (dpadDownLimiter.shouldTrigger(gamepad1.dpad_down)) {
-            robot.shooter.adjustPower(-0.01);
+            robot.shooter.adjustRPM(-50.0);
         }
 
         robot.shooter.state = Shooter.State.TESTING;
@@ -105,7 +107,10 @@ public class TestTeleOp extends OpMode {
         robot.update();
 
         // Telemetry
-        telemetry.addData("Shooter Power", robot.shooter.targetPower);
+        telemetry.addData("Shooter Target RPM", robot.shooter.targetRPM);
+        telemetry.addData("Shooter Current RPM", robot.shooter.getCurrentRPM());
+        telemetry.addData("RPM Error", robot.shooter.targetRPM - robot.shooter.getCurrentRPM());
+        telemetry.addData("Flywheel Velocity Power", robot.shooter.calculateVelocityPower());
         telemetry.addData("Shooter State", robot.shooter.state);
         telemetry.addData("Hood Position", robot.turret.hoodPosition);
         telemetry.addData("Gate Position", robot.turret.gatePosition);
