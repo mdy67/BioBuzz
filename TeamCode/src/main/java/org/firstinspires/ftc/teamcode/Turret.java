@@ -27,7 +27,7 @@ public class Turret {
     }
 
     public State state = State.IDLE;
-    public Goal currentGoal = Goal.GOAL_L;
+    public Goal currentGoal = Goal.GOAL_R;
 
     public CRServo turretServo1;
     public CRServo turretServo2;
@@ -43,6 +43,10 @@ public class Turret {
     public static final double TICKS_PER_REV = 8192.0;
     public static final double TICKS_PER_TURRET_DEGREE = (TICKS_PER_REV * TURRET_TO_ENCODER_GEAR_RATIO) / 360.0;
 
+    // Turret rotation limits calculated from encoder max/min ticks (-20526 CCW, 28362 CW) relative to 0 deg init
+    public static final double TICK_MIN_LIMIT = -20526.0;
+    public static final double TICK_MAX_LIMIT = 28362.0;
+
     public static double TURRET_MIN_ANGLE = -423.50;
     public static double TURRET_MAX_ANGLE = 156.42;
 
@@ -54,26 +58,29 @@ public class Turret {
     // Gate Servo positions
     public double gatePosition = 0.5;
 
-    // Target positions and angles (Goal L and Goal R mirrored across Y axis)
+    // Target positions and angles in true field coordinates
     public double targetAngle = 0.0; // Default facing 0 degrees
     public double lockAngle = 0.0;
-    public double targetX = 0.0;     // Field target X position (inches)
-    public double targetY = 0.0;     // Field target Y position (inches)
+    public double targetX = 0.0;     // True field target X position (inches)
+    public double targetY = 0.0;     // True field target Y position (inches)
 
-    public static double goalLX = -12.0;
-    public static double goalLY = -14.0;
-    public static double goalRX = 12.0;
-    public static double goalRY = -14.0;
+    // True field coordinates for Goal L and Goal R [+/- flipped]
+    public static double goalLX = 12.0;
+    public static double goalLY = 14.0;
+    public static double goalRX = -12.0;
+    public static double goalRY = 14.0;
 
     // Simplified SOTM tuning coefficients (based on robot velocity and joystick inputs)
     public static double sotmVelKp = 0.02;
     public static double sotmJoyKp = 1.5;
 
-    // PID gains & Battery Voltage Compensation parameters
+    // Best Single PID gains & Battery Voltage Compensation parameters
     public static double kP = 0.0007;
     public static double kI = 0.0008;
     public static double kD = 0.00008;
     public static double kS = 0.05; // Static friction compensation at 13.2V
+    public static double servoInvert = 1.0; // No servo inversion as requested
+    public static double turretBaseOffsetDeg = 180.0; // Tunable base heading offset
     public static double TUNED_VOLTAGE = 13.2;
     public static double FULL_POWER_THRESHOLD = 60.0;
 
@@ -96,7 +103,7 @@ public class Turret {
         }
 
         resetEncoder(); // Resets encoder on initialization (pointing towards 0 degrees)
-        setGoal(Goal.GOAL_L); // Default to Goal L
+        setGoal(Goal.GOAL_R); // Default to Goal R
     }
 
     public double getBatteryVoltage() {
@@ -118,7 +125,6 @@ public class Turret {
 
     public void resetEncoder() {
         if (turretEncoder != null) {
-            // Default pointing at 0 degrees upon initialization
             encoderOffset = turretEncoder.getCurrentPosition();
         }
     }
@@ -129,8 +135,12 @@ public class Turret {
         return currentTicks / TICKS_PER_TURRET_DEGREE;
     }
 
-    public double getDistanceToGoal(double robotX, double robotY) {
-        return Math.hypot(targetX - robotX, targetY - robotY);
+    public double getDistanceToGoal(Pose2D rawPose) {
+        double robotDriveX = rawPose.getX(DistanceUnit.INCH);
+        double robotDriveY = rawPose.getY(DistanceUnit.INCH);
+        double robotFieldX = robotDriveY;
+        double robotFieldY = -robotDriveX;
+        return Math.hypot(targetX - robotFieldX, targetY - robotFieldY);
     }
 
     public void setLockAngle(double angleDegrees) {
@@ -165,15 +175,10 @@ public class Turret {
         return wrapped;
     }
 
-    /**
-     * Finds the closest valid target angle to currentAngle within [TURRET_MIN_ANGLE, TURRET_MAX_ANGLE]
-     * handling multi-revolution wrapping (> 600 degrees of rotation).
-     */
     public double getClosestValidTarget(double rawTargetAngle, double currentAngle) {
         double bestTarget = currentAngle;
         double minDiff = Double.MAX_VALUE;
 
-        // Check base target and multiple 360-degree offsets (+/- 360, +/- 720, etc.)
         for (int k = -3; k <= 3; k++) {
             double candidate = rawTargetAngle + (k * 360.0);
             if (candidate >= TURRET_MIN_ANGLE && candidate <= TURRET_MAX_ANGLE) {
@@ -185,7 +190,6 @@ public class Turret {
             }
         }
 
-        // If no candidate falls strictly within limits, clamp the closest wrapped angle to limits
         if (minDiff == Double.MAX_VALUE) {
             double baseWrapped = currentAngle + wrapAngleDegrees(rawTargetAngle - currentAngle);
             bestTarget = Math.max(TURRET_MIN_ANGLE, Math.min(TURRET_MAX_ANGLE, baseWrapped));
@@ -194,33 +198,34 @@ public class Turret {
         return bestTarget;
     }
 
-    /**
-     * Calculates the required turret angle for TRACKING state using Pose2D.
-     */
-    public double calculateTrackingAngle(Pose2D robotPose) {
-        double robotX = robotPose.getX(DistanceUnit.INCH);
-        double robotY = robotPose.getY(DistanceUnit.INCH);
-        double robotHeadingDeg = robotPose.getHeading(AngleUnit.DEGREES);
+    public double calculateTrackingAngle(Pose2D rawPose) {
+        double robotDriveX = rawPose.getX(DistanceUnit.INCH);
+        double robotDriveY = rawPose.getY(DistanceUnit.INCH);
+        double robotHeadingDeg = rawPose.getHeading(AngleUnit.DEGREES);
 
-        double dx = targetX - robotX;
-        double dy = targetY - robotY;
-        double targetFieldHeadingDeg = Math.toDegrees(Math.atan2(-dx, dy));
-        return wrapAngleDegrees(targetFieldHeadingDeg - robotHeadingDeg);
+        // Convert raw Pinpoint odometry frame to true field frame matching drivetrain x/y localization
+        double robotFieldX = robotDriveY;
+        double robotFieldY = -robotDriveX;
+
+        double dx = targetX - robotFieldX;
+        double dy = targetY - robotFieldY;
+        double targetFieldHeadingDeg = Math.toDegrees(Math.atan2(dx, dy));
+        return wrapAngleDegrees(targetFieldHeadingDeg + robotHeadingDeg + turretBaseOffsetDeg);
     }
 
-    /**
-     * Calculates the simplified SOTM (Shoot On The Move) turret angle based on robot velocity and joystick input coefficients.
-     */
-    public double calculateSimplifiedSOTMAngle(Pose2D robotPose, double xVel, double yVel,
+    public double calculateSimplifiedSOTMAngle(Pose2D rawPose, double xVel, double yVel,
                                                double joystickStrafe, double joystickForward) {
-        double robotX = robotPose.getX(DistanceUnit.INCH);
-        double robotY = robotPose.getY(DistanceUnit.INCH);
-        double robotHeadingDeg = robotPose.getHeading(AngleUnit.DEGREES);
+        double robotDriveX = rawPose.getX(DistanceUnit.INCH);
+        double robotDriveY = rawPose.getY(DistanceUnit.INCH);
+        double robotHeadingDeg = rawPose.getHeading(AngleUnit.DEGREES);
 
-        double dx = targetX - robotX;
-        double dy = targetY - robotY;
-        double baseAngleDeg = Math.toDegrees(Math.atan2(-dx, dy));
-        double relativeAngle = wrapAngleDegrees(baseAngleDeg - robotHeadingDeg);
+        double robotFieldX = robotDriveY;
+        double robotFieldY = -robotDriveX;
+
+        double dx = targetX - robotFieldX;
+        double dy = targetY - robotFieldY;
+        double baseAngleDeg = Math.toDegrees(Math.atan2(dx, dy));
+        double relativeAngle = wrapAngleDegrees(baseAngleDeg + robotHeadingDeg + turretBaseOffsetDeg);
 
         double speedMag = Math.hypot(xVel, yVel);
         double joyMag = Math.hypot(joystickStrafe, joystickForward);
@@ -230,7 +235,7 @@ public class Turret {
     }
 
     /**
-     * Updates the PID loop to drive the CR Servos towards targetAngle with voltage compensation and zero-overshoot deceleration.
+     * Updates the Single PID loop with Square-Root Shaping and Voltage Compensation.
      */
     public void updatePID() {
         long currentTime = System.currentTimeMillis();
@@ -238,13 +243,10 @@ public class Turret {
         double dt = (elapsedSeconds <= 0) ? 0.001 : elapsedSeconds;
 
         double currentAngle = getTurretAngleDegrees();
-
-        // Get closest valid target within limits (handling > 600 degrees rotation)
         double constrainedTarget = getClosestValidTarget(targetAngle, currentAngle);
-
         double error = constrainedTarget - currentAngle;
 
-        // 1. Deadband: Stop powering completely if error < 1 degree (eliminates jitter)
+        // 1. Deadband: Stop powering completely if error < 1 degree
         if (Math.abs(error) < 1.0) {
             integralSum = 0.0;
             if (turretServo1 != null) turretServo1.setPower(0.0);
@@ -254,15 +256,12 @@ public class Turret {
             return;
         }
 
-        // Battery voltage scaling factor relative to 13.2V tuned baseline
         double currentVoltage = getBatteryVoltage();
         double voltageScale = TUNED_VOLTAGE / currentVoltage;
 
-        // Low-pass filter derivative to eliminate noise and provide smooth braking
         double rawDerivative = (error - lastError) / dt;
         filteredDerivative = 0.7 * filteredDerivative + 0.3 * rawDerivative;
 
-        // 2. PD + I + Voltage-Compensated Static Friction with smooth deceleration zone (> FULL_POWER_THRESHOLD deg = full speed)
         double outputPower;
         if (Math.abs(error) > FULL_POWER_THRESHOLD) {
             outputPower = Math.signum(error) * Math.min(1.0, voltageScale);
@@ -274,64 +273,40 @@ public class Turret {
             double linearPid = (kP * error) + (kI * integralSum) + (kD * filteredDerivative);
             double shapedPid = Math.sqrt(Math.abs(linearPid)) * Math.signum(linearPid);
             
-            // Scale static friction with battery voltage compensation
             double effectiveKs = kS * voltageScale;
             double staticFriction = (Math.abs(error) > 0.5) ? effectiveKs * Math.signum(error) : 0.0;
 
             outputPower = (shapedPid + staticFriction) * voltageScale;
         }
 
-        // Endstop Enforcement: prevent powering past limits, actively push back if outside bounds
+        // Endstop Enforcement
         if (currentAngle <= TURRET_MIN_ANGLE) {
-            if (error < 0) {
-                outputPower = 0.0;
-            }
-            if (currentAngle < TURRET_MIN_ANGLE - 1.0) {
-                outputPower = 0.3; // active correction pushing back up
-            }
+            if (error < 0) outputPower = 0.0;
+            if (currentAngle < TURRET_MIN_ANGLE - 1.0) outputPower = 0.3;
         } else if (currentAngle >= TURRET_MAX_ANGLE) {
-            if (error > 0) {
-                outputPower = 0.0;
-            }
-            if (currentAngle > TURRET_MAX_ANGLE + 1.0) {
-                outputPower = -0.3; // active correction pushing back down
-            }
+            if (error > 0) outputPower = 0.0;
+            if (currentAngle > TURRET_MAX_ANGLE + 1.0) outputPower = -0.3;
         }
 
-        outputPower = Math.max(-1.0, Math.min(1.0, outputPower));
+        outputPower = Math.max(-1.0, Math.min(1.0, outputPower)) * servoInvert;
 
-        if (turretServo1 != null) {
-            turretServo1.setPower(outputPower);
-        }
-        if (turretServo2 != null) {
-            turretServo2.setPower(outputPower); // Same direction
-        }
+        if (turretServo1 != null) turretServo1.setPower(outputPower);
+        if (turretServo2 != null) turretServo2.setPower(outputPower);
 
         lastError = error;
         lastTime = currentTime;
     }
 
-    /**
-     * Main update loop for Turret.
-     */
     public void update() {
-        if (hoodServo != null) {
-            hoodServo.setPosition(hoodPosition);
-        }
-        if (gateServo != null) {
-            gateServo.setPosition(gatePosition);
-        }
+        if (hoodServo != null) hoodServo.setPosition(hoodPosition);
+        if (gateServo != null) gateServo.setPosition(gatePosition);
 
         switch (state) {
             case LOCKED:
-                updatePID();
-                break;
-
             case TRACKING:
             case SOTM:
                 updatePID();
                 break;
-
             case IDLE:
             default:
                 if (turretServo1 != null) turretServo1.setPower(0.0);
@@ -340,20 +315,20 @@ public class Turret {
         }
     }
 
-    public void updateTracking(Pose2D robotPose) {
-        this.targetAngle = calculateTrackingAngle(robotPose);
+    public void updateTracking(Pose2D rawPose) {
+        this.targetAngle = calculateTrackingAngle(rawPose);
         this.state = State.TRACKING;
         updatePID();
     }
 
-    public void updateSOTM(Pose2D robotPose, double xVel, double yVel, double joystickStrafe, double joystickForward) {
-        this.targetAngle = calculateSimplifiedSOTMAngle(robotPose, xVel, yVel, joystickStrafe, joystickForward);
+    public void updateSOTM(Pose2D rawPose, double xVel, double yVel, double joystickStrafe, double joystickForward) {
+        this.targetAngle = calculateSimplifiedSOTMAngle(rawPose, xVel, yVel, joystickStrafe, joystickForward);
         this.state = State.SOTM;
         updatePID();
     }
 
-    public void updateSOTM(Pose2D robotPose, double xVel, double yVel, double headingVelDeg,
+    public void updateSOTM(Pose2D rawPose, double xVel, double yVel, double headingVelDeg,
                            double joystickStrafe, double joystickForward, double joystickTurn) {
-        updateSOTM(robotPose, xVel, yVel, joystickStrafe, joystickForward);
+        updateSOTM(rawPose, xVel, yVel, joystickStrafe, joystickForward);
     }
 }

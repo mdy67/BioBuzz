@@ -19,7 +19,7 @@ public class Shooter {
     public State state = State.IDLE;
 
     public DcMotorEx flywheel;
-    private DcMotorEx rpmPort;
+    private final DcMotorEx rpmPort;
     public VoltageSensor voltageSensor;
 
     // Encoder resolution (ticks per rev on flywheel motor)
@@ -32,7 +32,7 @@ public class Shooter {
     public double targetPower = 0.0;
     public boolean useVelocityPID = true;
 
-    // Insanely smooth flywheel tuning parameters optimized for 3000-4000 RPM
+    // Smooth flywheel tuning parameters optimized for 3000-4000 RPM
     public static double kP = 0.0005;
     public static double kI = 0.0002;
     public static double kD = 0.000008;
@@ -40,16 +40,12 @@ public class Shooter {
     public static double kStatic = 0.05;
     public static double MIN_POWER = 0.08;
     public static double ACCEL_THRESHOLD_RPM = 400.0;
-    public static double DEADBAND_RPM = 20.0; // Deadband window to prevent hunting/jitter near setpoint
+    public static double DEADBAND_RPM = 20.0;
 
-    // Quintic regression coefficients for RPM based on distance to goal:
-    // RPM = a*d^5 + b*d^4 + c*d^3 + d*d^2 + e*d + f
-    public static double rpmA = 0.0;
-    public static double rpmB = 0.0;
-    public static double rpmC = 0.00001;
-    public static double rpmD = -0.001;
-    public static double rpmE = 20.0;
-    public static double rpmF = 1500.0;
+    // Quadratic regression coefficients for RPM based on distance to goal (inches)
+    public static double quadA = -0.00968326;
+    public static double quadB = 1.15485;
+    public static double quadC = 3.01563;
 
     private double filteredRPM = 0.0;
     private double currentPowerOutput = 0.0;
@@ -58,25 +54,23 @@ public class Shooter {
 
     public Shooter(HardwareMap hardwareMap) {
         flywheel = hardwareMap.get(DcMotorEx.class, "flywheelL");
-        rpmPort = hardwareMap.get(DcMotorEx.class, "leftFront"); // port motor encoder for flywheel is plugged in to
+        rpmPort = hardwareMap.get(DcMotorEx.class, "leftFront");
 
         flywheel.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        flywheel.setDirection(DcMotorSimple.Direction.REVERSE);
+        flywheel.setDirection(DcMotorSimple.Direction.FORWARD);
 
         if (hardwareMap.voltageSensor.iterator().hasNext()) {
             voltageSensor = hardwareMap.voltageSensor.iterator().next();
         }
     }
 
-    public static double calculateQuinticRPM(double distanceInches) {
-        double d = distanceInches;
-        return (rpmA * Math.pow(d, 5)) +
-               (rpmB * Math.pow(d, 4)) +
-               (rpmC * Math.pow(d, 3)) +
-               (rpmD * Math.pow(d, 2)) +
-               (rpmE * d) +
-               rpmF;
+    /**
+     * Calculates target RPM using quadratic regression based on distance to goal (inches).
+     */
+    public static double calculateRpm(double distanceInches) {
+        double yDiv100 = (quadA * distanceInches * distanceInches) + (quadB * distanceInches) + quadC;
+        return yDiv100 * 100.0;
     }
 
     public double getBatteryVoltage() {
@@ -98,17 +92,12 @@ public class Shooter {
         this.useVelocityPID = true;
     }
 
-    public void setPower(double power) {
-        this.targetPower = Math.max(0.0, Math.min(1.0, power));
-        this.useVelocityPID = false;
-    }
-
     public void adjustRPM(double deltaRPM) {
         setTargetRPM(this.targetRPM + deltaRPM);
     }
 
     /**
-     * Unorthodox, insanely smooth jitter-free velocity PID controller optimized for 3000-4000 RPM.
+     * Velocity PID controller optimized for smooth jitter-free flywheel response at 3000-4000 RPM.
      */
     public double calculateVelocityPower() {
         if (targetRPM <= 0) {
@@ -122,16 +111,13 @@ public class Shooter {
         double voltageScale = NOMINAL_VOLTAGE / currentVoltage;
 
         double rawRPM = getCurrentRPM();
-        // Exponential moving average filter on RPM to remove encoder quantization jitter
         filteredRPM = 0.7 * filteredRPM + 0.3 * rawRPM;
 
         double rpmError = targetRPM - filteredRPM;
 
-        // 1. Fast Acceleration Phase
         if (rpmError > ACCEL_THRESHOLD_RPM) {
             integralSum = 0.0;
             double targetAccelPower = Math.min(1.0, voltageScale);
-            // Slew rate limit acceleration
             currentPowerOutput += Math.max(-0.05, Math.min(0.05, targetAccelPower - currentPowerOutput));
             return currentPowerOutput;
         }
@@ -141,25 +127,21 @@ public class Shooter {
         double dt = (elapsedSeconds <= 0) ? 0.001 : elapsedSeconds;
         lastTime = currentTime;
 
-        // 2. Feedforward + Static Friction Compensation
         double ff = (targetRPM * kF) + (targetRPM > 0 ? kStatic : 0.0);
 
-        // 3. Deadband to prevent hunting / oscillating by 50-60 RPM near setpoint
         double pid;
         if (Math.abs(rpmError) > DEADBAND_RPM) {
             integralSum += rpmError * dt;
             integralSum = Math.max(-200.0, Math.min(200.0, integralSum));
             pid = (kP * rpmError) + (kI * integralSum);
         } else {
-            // Inside deadband: freeze integral and suppress proportional jitter
             pid = 0.0;
         }
 
         double scaledPower = (ff + pid) * voltageScale;
         double desiredPower = Math.max(MIN_POWER, Math.min(1.0, scaledPower));
 
-        // 4. Slew-Rate Limiter for ultra-smooth power transitions (prevents hunting/twitching)
-        double maxDeltaPower = 0.03; // max power change per loop
+        double maxDeltaPower = 0.03;
         currentPowerOutput += Math.max(-maxDeltaPower, Math.min(maxDeltaPower, desiredPower - currentPowerOutput));
 
         return currentPowerOutput;

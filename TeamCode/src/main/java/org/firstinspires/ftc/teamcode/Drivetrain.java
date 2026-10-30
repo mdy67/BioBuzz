@@ -28,7 +28,7 @@ public class Drivetrain {
     public State state = State.IDLE;
     public DcMotor leftFront, leftBack, rightBack, rightFront;
     public DcMotor[] driveMotors;
-    GoBildaPinpointDriver pinpoint1, pinpoint2;
+    GoBildaPinpointDriver pinpoint1;
     public final List<DcMotor> driveMotorList = new ArrayList<>();
 
     private DcMotorEx initMotor(HardwareMap hw, String name, boolean reverse) {
@@ -53,17 +53,15 @@ public class Drivetrain {
         driveMotors = driveMotorList.toArray(new DcMotor[0]);
 
         pinpoint1 = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint1");
-        pinpoint2 = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint2");
 
         setupPinpoint(pinpoint1);
-        setupPinpoint(pinpoint2);
     }
 
     private void setupPinpoint(GoBildaPinpointDriver pp) {
         pp.setOffsets(69.19, -154.75, DistanceUnit.MM);
         pp.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         pp.setEncoderDirections(
-                GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                GoBildaPinpointDriver.EncoderDirection.REVERSED,
                 GoBildaPinpointDriver.EncoderDirection.FORWARD
         );
     }
@@ -71,7 +69,6 @@ public class Drivetrain {
     public void setPosition(double x, double y, double heading) {
         Pose2D pose = new Pose2D(DistanceUnit.INCH, x, y, AngleUnit.DEGREES, heading);
         pinpoint1.setPosition(pose);
-        pinpoint2.setPosition(pose);
     }
 
     public void setMotorPowers(double lf, double lb, double rb, double rf) {
@@ -114,7 +111,7 @@ public class Drivetrain {
     public double targetX, targetY, targetT, targetVel, xyThreshold, hThreshold;
     public double XVel, YVel, TVel;
     public double powerScale = 1.0;
-    public double decelThreshold = 8.0; // Distance threshold in inches before PID deceleration kicks in
+    public double decelThreshold = 8.0;
 
     public double xErr, yErr, tErr;
     private boolean atX, atY, atT;
@@ -129,22 +126,26 @@ public class Drivetrain {
     DTSQUID tSquid = new DTSQUID(hkP, hkD);
 
     public void updatePosData(int pinpoint) {
-        if (pinpoint == 1) {
-            pinpoint1.update();
-            XVel = pinpoint1.getVelX(DistanceUnit.INCH);
-            YVel = pinpoint1.getVelY(DistanceUnit.INCH);
-            TVel = pinpoint1.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES);
-            robotPose = pinpoint1.getPosition();
-        } else {
-            pinpoint2.update();
-            XVel = pinpoint2.getVelX(DistanceUnit.INCH);
-            YVel = pinpoint2.getVelY(DistanceUnit.INCH);
-            TVel = pinpoint2.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES);
-            robotPose = pinpoint2.getPosition();
-        }
-        x = robotPose.getX(DistanceUnit.INCH);
-        y = robotPose.getY(DistanceUnit.INCH);
+        pinpoint1.update();
+        double rawXVel = pinpoint1.getVelX(DistanceUnit.INCH);
+        double rawYVel = pinpoint1.getVelY(DistanceUnit.INCH);
+        XVel = -rawYVel;
+        YVel = rawXVel;
+
+        TVel = pinpoint1.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES);
+        robotPose = pinpoint1.getPosition();
+
+        double rawX = robotPose.getX(DistanceUnit.INCH);
+        double rawY = robotPose.getY(DistanceUnit.INCH);
+
+        // Keep localization for drivetrain exactly as user configured it
+        x = -rawY;
+        y = rawX;
         head = robotPose.getHeading(AngleUnit.DEGREES);
+    }
+
+    public Pose2D getRawPose() {
+        return pinpoint1.getPosition();
     }
 
     public static double wrapAngleDegrees(double angle) {
@@ -189,31 +190,6 @@ public class Drivetrain {
 
     public void updateGoToPoint() {
         getErrors();
-
-        if (atPoint) {
-            setMotorPowers(0, 0, 0, 0);
-            state = State.HOLD_POINT;
-            return;
-        }
-
-        double globxErr = targetX - x;
-        double globyErr = targetY - y;
-        double distanceToTarget = Math.hypot(globxErr, globyErr); // wait, Math.hypot(globxErr, globyErr)
-
-        double strafePower = xSquid.SquidOutput(xErr);
-        double forwardPower = ySquid.SquidOutput(yErr);
-        double turnPower = tSquid.SquidOutput(tErr);
-
-        // Max Power Phase: If outside decelThreshold, scale translation to max power (powerScale)
-        if (distanceToTarget > decelThreshold) {
-            double translationMag = Math.hypot(strafePower, forwardPower);
-            if (translationMag > 1e-4) {
-                strafePower = (strafePower / translationMag) * powerScale;
-                forwardPower = (forwardPower / translationMag) * powerScale;
-            }
-        }
-
-        setWeightedMotorPowers(strafePower, forwardPower, turnPower);
     }
 
     public void update() {
