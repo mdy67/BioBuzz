@@ -24,7 +24,7 @@ public class Shooter {
 
     // Encoder resolution (ticks per rev on flywheel motor)
     public static double TICKS_PER_REV = 28.0;
-    public static double MAX_RPM = 6000.0;
+    public static double MAX_RPM = 3600.0;
     public static double NOMINAL_VOLTAGE = 12.0;
 
     // Target velocity in RPM and open-loop target power fallback
@@ -39,7 +39,7 @@ public class Shooter {
     public static double kF = 0.00016;
     public static double kStatic = 0.05;
     public static double MIN_POWER = 0.08;
-    public static double ACCEL_THRESHOLD_RPM = 400.0;
+    public static double ACCEL_THRESHOLD_RPM = 800.0;
     public static double DEADBAND_RPM = 20.0;
 
     // Quadratic regression coefficients for RPM based on distance to goal (inches)

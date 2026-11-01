@@ -40,7 +40,7 @@ public class Robot {
         ElapsedTime shootTimer = new ElapsedTime();
         shooter.state = Shooter.State.SHOOTING;
         while (opMode.opModeIsActive() && shootTimer.seconds() < durationSeconds) {
-            double distance = turret.getDistanceToGoal(drivetrain.getRawPose());
+            double distance = turret.getDistanceToGoal(drivetrain.robotPose);
             shooter.setTargetRPM(Shooter.calculateRpm(distance));
             turret.setGateTransferring(true);
             intake.state = Intake.State.TRANSFERRING;
@@ -65,9 +65,9 @@ public class Robot {
 
         // 2. Automatically update turret aiming based on state and raw Pinpoint pose
         if (turret.state == Turret.State.TRACKING) {
-            turret.updateTracking(drivetrain.getRawPose());
+            turret.updateTracking(drivetrain.robotPose);
         } else if (turret.state == Turret.State.SOTM) {
-            turret.updateSOTM(drivetrain.getRawPose(), drivetrain.XVel, drivetrain.YVel, 0.0, 0.0);
+            turret.updateSOTM(drivetrain.robotPose, drivetrain.XVel, drivetrain.YVel, 0.0, 0.0);
         }
 
         // 3. Update all physical subsystems

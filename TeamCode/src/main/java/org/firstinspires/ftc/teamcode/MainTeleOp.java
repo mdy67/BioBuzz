@@ -8,9 +8,11 @@ public class MainTeleOp extends OpMode {
 
     private Robot robot;
     private boolean lastXButton = false;
+    private boolean lastAButton = false;
+    private boolean lastLeftTrigger = false;
     private boolean sotmMode = false;
 
-    private double flywheelRpmOffset = 0.0;
+    private double flywheelRpmOffset = -150.0;
     private double turretAngleOffset = 0.0;
 
     // Rate limiter helper for dpad adjustments
@@ -53,9 +55,9 @@ public class MainTeleOp extends OpMode {
     @Override
     public void init() {
         robot = new Robot(hardwareMap);
-        robot.drivetrain.setPosition(0.0, 0.0, 0.0); // Reset position to x:0, y:0, heading:0 facing +Y at init
+        robot.drivetrain.setPosition(0.0, 0.0, 90.0); // Reset position to x:0, y:0, heading:90 at init
         robot.turret.setGoal(Turret.Goal.GOAL_R); // Default Goal R
-        robot.turret.state = Turret.State.TRACKING;
+        robot.turret.state = Turret.State.LOCKED;
     }
 
     @Override
@@ -63,7 +65,7 @@ public class MainTeleOp extends OpMode {
         // 1. Drivetrain control (Pinpoint 1) with reversed forward/backwards and right trigger slow mode (0.3x)
         double strafe = gamepad1.left_stick_x;
         double forward = gamepad1.left_stick_y; // Reversed: positive stick forward
-        double turn = gamepad1.right_stick_x;
+        double turn = gamepad1.right_stick_x * 0.85;
 
         double speedMultiplier = (gamepad1.right_trigger > 0.1) ? 0.3 : 1.0;
 
@@ -82,27 +84,48 @@ public class MainTeleOp extends OpMode {
 
         robot.turret.state = sotmMode ? Turret.State.SOTM : Turret.State.TRACKING;
 
+        // Reset Drivetrain Position & Heading on A Button press (x: 0, y: -65, heading: 90)
+        boolean aPressed = gamepad1.a;
+        if (aPressed && !lastAButton) {
+            robot.drivetrain.setPosition(0.0, -65.0, 90.0);
+        }
+        lastAButton = aPressed;
+
+        // Toggle Goal R vs Goal L targeting with Left Trigger press
+        boolean leftTriggerPressed = gamepad1.left_trigger > 0.1;
+        if (leftTriggerPressed && !lastLeftTrigger) {
+            if (robot.turret.currentGoal == Turret.Goal.GOAL_R) {
+                robot.turret.setGoal(Turret.Goal.GOAL_L);
+            } else {
+                robot.turret.setGoal(Turret.Goal.GOAL_R);
+            }
+        }
+        lastLeftTrigger = leftTriggerPressed;
+
         // Turret Angle Offset adjustment via Dpad Left / Right (1 degree per press/hold)
         if (dpadLeftLimiter.shouldTrigger(gamepad1.dpad_left)) {
             turretAngleOffset -= 1.0;
+            Turret.turretBaseOffsetDeg = turretAngleOffset;
         }
         if (dpadRightLimiter.shouldTrigger(gamepad1.dpad_right)) {
             turretAngleOffset += 1.0;
+            Turret.turretBaseOffsetDeg = turretAngleOffset;
         }
 
         // Flywheel RPM offset adjustment via Dpad Up / Down
         if (dpadUpLimiter.shouldTrigger(gamepad1.dpad_up)) {
-            flywheelRpmOffset += 50.0;
+            flywheelRpmOffset += 30.0;
         }
         if (dpadDownLimiter.shouldTrigger(gamepad1.dpad_down)) {
-            flywheelRpmOffset -= 50.0;
+            flywheelRpmOffset -= 30.0;
         }
 
         // 2. Shooter ALWAYS tracks the goal (Flywheel & Turret) using Quadratic Regression
-        double distanceToGoal = robot.turret.getDistanceToGoal(robot.drivetrain.getRawPose());
-        double targetRPM = Shooter.calculateRpm(distanceToGoal) + flywheelRpmOffset;
+        double distanceToGoal = robot.turret.getDistanceToGoal(robot.drivetrain.robotPose);
+       // double targetRPM = Shooter.calculateRpm(distanceToGoal) + flywheelRpmOffset;
 
-        robot.shooter.setTargetRPM(targetRPM);
+      //  robot.shooter.setTargetRPM(targetRPM);
+        robot.shooter.setTargetRPM(3375 + flywheelRpmOffset);
         robot.shooter.state = Shooter.State.SHOOTING;
 
         // 3. Intake and Transfer/Shoot controls (Bumpers)
@@ -116,7 +139,7 @@ public class MainTeleOp extends OpMode {
         } else if (gamepad1.left_bumper) {
             robot.intake.state = Intake.State.INTAKING;
         } else if (gamepad1.left_trigger > 0.1) {
-            robot.intake.state = Intake.State.OUTTAKING;
+
         } else {
             robot.intake.state = Intake.State.IDLE;
         }
@@ -132,9 +155,6 @@ public class MainTeleOp extends OpMode {
             robot.turret.updateTracking(robot.drivetrain.robotPose);
         }
 
-        // Apply turret angle offset
-        robot.turret.targetAngle += turretAngleOffset;
-
         // 5. Periodic update of all subsystems (Pinpoint 1)
         robot.update();
 
@@ -145,9 +165,10 @@ public class MainTeleOp extends OpMode {
         telemetry.addData("Active Goal", robot.turret.currentGoal);
         telemetry.addData("Turret Mode", sotmMode ? "SOTM" : "Tracking");
         telemetry.addData("Distance to Goal (in)", distanceToGoal);
+        telemetry.addData("Hood Position", robot.turret.hoodPosition);
         telemetry.addData("Turret Angle Offset (deg)", turretAngleOffset);
         telemetry.addData("Flywheel RPM Offset", flywheelRpmOffset);
-        telemetry.addData("Target RPM (Quadratic + Offset)", targetRPM);
+       // telemetry.addData("Target RPM (Quadratic + Offset)", targetRPM);
         telemetry.addData("Shooter Current RPM", robot.shooter.getCurrentRPM());
         telemetry.addData("Intake State", robot.intake.state);
         telemetry.addData("Gate Position", robot.turret.gatePosition);

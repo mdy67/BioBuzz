@@ -57,8 +57,8 @@ public class Drivetrain {
         setupPinpoint(pinpoint1);
     }
 
-    private void setupPinpoint(GoBildaPinpointDriver pp) {
-        pp.setOffsets(69.19, -154.75, DistanceUnit.MM);
+    private void setupPinpoint(GoBildaPinpointDriver pp) { // NEVER TOUCH THESE POSITIONS.
+        pp.setOffsets(-71.6, -96, DistanceUnit.MM);
         pp.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         pp.setEncoderDirections(
                 GoBildaPinpointDriver.EncoderDirection.REVERSED,
@@ -67,6 +67,7 @@ public class Drivetrain {
     }
 
     public void setPosition(double x, double y, double heading) {
+        // Map localized x and y back to Pinpoint's internal pod axes (rawX = y, rawY = x)
         Pose2D pose = new Pose2D(DistanceUnit.INCH, x, y, AngleUnit.DEGREES, heading);
         pinpoint1.setPosition(pose);
     }
@@ -101,7 +102,7 @@ public class Drivetrain {
         setWeightedMotorPowers(strafe, forward, turn);
     }
 
-    public Pose2D robotPose = new Pose2D(DistanceUnit.INCH, 0.0, 0.0, AngleUnit.DEGREES, 0.0);
+    public Pose2D robotPose = new Pose2D(DistanceUnit.INCH, 0.0, 0.0, AngleUnit.DEGREES, 90.0);
     public double x, y, head;
     public Pose2D lastRobotPose = robotPose;
     public Pose2D targetPose = robotPose;
@@ -127,25 +128,22 @@ public class Drivetrain {
 
     public void updatePosData(int pinpoint) {
         pinpoint1.update();
-        double rawXVel = pinpoint1.getVelX(DistanceUnit.INCH);
-        double rawYVel = pinpoint1.getVelY(DistanceUnit.INCH);
-        XVel = -rawYVel;
-        YVel = rawXVel;
-
+        XVel = pinpoint1.getVelX(DistanceUnit.INCH);
+        YVel = pinpoint1.getVelY(DistanceUnit.INCH);
         TVel = pinpoint1.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES);
         robotPose = pinpoint1.getPosition();
 
         double rawX = robotPose.getX(DistanceUnit.INCH);
         double rawY = robotPose.getY(DistanceUnit.INCH);
 
-        // Keep localization for drivetrain exactly as user configured it
-        x = -rawY;
-        y = rawX;
+        // Map pod axes so driving forward increases Y (+Y) and strafing right increases X (+X)
+        x = rawX;
+        y = rawY;
         head = robotPose.getHeading(AngleUnit.DEGREES);
     }
 
-    public Pose2D getRawPose() {
-        return pinpoint1.getPosition();
+    public Pose2D getLocalizedPose() {
+        return new Pose2D(DistanceUnit.INCH, x, y, AngleUnit.DEGREES, head);
     }
 
     public static double wrapAngleDegrees(double angle) {

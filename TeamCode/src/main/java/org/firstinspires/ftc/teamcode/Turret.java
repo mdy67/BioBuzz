@@ -64,15 +64,15 @@ public class Turret {
     public double targetX = 0.0;     // True field target X position (inches)
     public double targetY = 0.0;     // True field target Y position (inches)
 
-    // True field coordinates for Goal L and Goal R [+/- flipped]
-    public static double goalLX = 12.0;
-    public static double goalLY = 14.0;
-    public static double goalRX = -12.0;
-    public static double goalRY = 14.0;
+    // True field coordinates for Goal L and Goal R
+    public static double goalLX = -12.0;
+    public static double goalLY = -11.0;
+    public static double goalRX = 12.0;
+    public static double goalRY = -11.0;
 
     // Simplified SOTM tuning coefficients (based on robot velocity and joystick inputs)
-    public static double sotmVelKp = 0.02;
-    public static double sotmJoyKp = 1.5;
+    public static double sotmVelKp = 0.8;
+    public static double sotmJoyKp = 2;
 
     // Best Single PID gains & Battery Voltage Compensation parameters
     public static double kP = 0.0007;
@@ -80,7 +80,7 @@ public class Turret {
     public static double kD = 0.00008;
     public static double kS = 0.05; // Static friction compensation at 13.2V
     public static double servoInvert = 1.0; // No servo inversion as requested
-    public static double turretBaseOffsetDeg = 180.0; // Tunable base heading offset
+    public static double turretBaseOffsetDeg = 0.0; // Tunable base heading offset
     public static double TUNED_VOLTAGE = 13.2;
     public static double FULL_POWER_THRESHOLD = 60.0;
 
@@ -138,8 +138,8 @@ public class Turret {
     public double getDistanceToGoal(Pose2D rawPose) {
         double robotDriveX = rawPose.getX(DistanceUnit.INCH);
         double robotDriveY = rawPose.getY(DistanceUnit.INCH);
-        double robotFieldX = robotDriveY;
-        double robotFieldY = -robotDriveX;
+        double robotFieldX = robotDriveX;
+        double robotFieldY = robotDriveY;
         return Math.hypot(targetX - robotFieldX, targetY - robotFieldY);
     }
 
@@ -158,6 +158,15 @@ public class Turret {
         if (hoodServo != null) {
             hoodServo.setPosition(this.hoodPosition);
         }
+    }
+
+    /**
+     * Linear regression for hood servo position based on distance to goal (inches):
+     * y = 0.00452703 * x + 0.717297
+     */
+    public static double calculateHoodPosition(double distanceInches) {
+        double y = (0.00694915 * distanceInches) + 0.573593;
+        return Math.max(HOOD_MIN, Math.min(HOOD_MAX, y + 0.03));
     }
 
     public void setGateTransferring(boolean transferring) {
@@ -203,14 +212,13 @@ public class Turret {
         double robotDriveY = rawPose.getY(DistanceUnit.INCH);
         double robotHeadingDeg = rawPose.getHeading(AngleUnit.DEGREES);
 
-        // Convert raw Pinpoint odometry frame to true field frame matching drivetrain x/y localization
-        double robotFieldX = robotDriveY;
-        double robotFieldY = -robotDriveX;
+        double robotFieldX = robotDriveX;
+        double robotFieldY = robotDriveY;
 
         double dx = targetX - robotFieldX;
         double dy = targetY - robotFieldY;
         double targetFieldHeadingDeg = Math.toDegrees(Math.atan2(dx, dy));
-        return wrapAngleDegrees(targetFieldHeadingDeg + robotHeadingDeg + turretBaseOffsetDeg);
+        return wrapAngleDegrees(targetFieldHeadingDeg + robotHeadingDeg + turretBaseOffsetDeg - 90);
     }
 
     public double calculateSimplifiedSOTMAngle(Pose2D rawPose, double xVel, double yVel,
@@ -222,8 +230,8 @@ public class Turret {
         double robotFieldX = robotDriveY;
         double robotFieldY = -robotDriveX;
 
-        double dx = targetX - robotFieldX;
-        double dy = targetY - robotFieldY;
+        double dx = targetY - robotFieldX;
+        double dy = -targetX - robotFieldY;
         double baseAngleDeg = Math.toDegrees(Math.atan2(dx, dy));
         double relativeAngle = wrapAngleDegrees(baseAngleDeg + robotHeadingDeg + turretBaseOffsetDeg);
 
@@ -298,7 +306,8 @@ public class Turret {
     }
 
     public void update() {
-        if (hoodServo != null) hoodServo.setPosition(hoodPosition);
+      //  if (hoodServo != null) hoodServo.setPosition(hoodPosition);
+      //  hoodServo.setPosition(1);
         if (gateServo != null) gateServo.setPosition(gatePosition);
 
         switch (state) {
@@ -317,12 +326,17 @@ public class Turret {
 
     public void updateTracking(Pose2D rawPose) {
         this.targetAngle = calculateTrackingAngle(rawPose);
+        double dist = getDistanceToGoal(rawPose);
+       // setHoodPosition(calculateHoodPosition(dist));
+        setHoodPosition(1);
         this.state = State.TRACKING;
         updatePID();
     }
 
     public void updateSOTM(Pose2D rawPose, double xVel, double yVel, double joystickStrafe, double joystickForward) {
         this.targetAngle = calculateSimplifiedSOTMAngle(rawPose, xVel, yVel, joystickStrafe, joystickForward);
+        double dist = getDistanceToGoal(rawPose);
+        setHoodPosition(calculateHoodPosition(dist));
         this.state = State.SOTM;
         updatePID();
     }
