@@ -24,12 +24,13 @@ public class Shooter {
 
     // Encoder resolution (ticks per rev on flywheel motor)
     public static double TICKS_PER_REV = 28.0;
-    public static double MAX_RPM = 3600.0;
+    public static double MAX_RPM = 4500.0;
     public static double NOMINAL_VOLTAGE = 12.0;
 
     // Target velocity in RPM and open-loop target power fallback
     public double targetRPM = 0.0;
     public double targetPower = 0.0;
+    public double powerBoost = 0.0; // Dynamic power addition (e.g. intake rampScale * 0.1)
     public boolean useVelocityPID = true;
 
     // Smooth flywheel tuning parameters optimized for 3000-4000 RPM
@@ -151,7 +152,8 @@ public class Shooter {
         switch (state) {
             case TESTING:
             case SHOOTING:
-                double powerToApply = useVelocityPID ? calculateVelocityPower() : targetPower;
+                double basePower = useVelocityPID ? calculateVelocityPower() : targetPower;
+                double powerToApply = Math.min(1.0, Math.max(0.0, basePower + powerBoost));
                 flywheel.setPower(powerToApply);
                 break;
 

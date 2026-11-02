@@ -23,15 +23,16 @@ public class Intake {
     public DcMotor transferMotor;
     public VoltageSensor voltageSensor;
 
-    public double intakePower = 0.7;
-    public double transferIntakePower = 0.25;
-    public double transferPower = 0.5; // Transfer power for shooting
+    public double intakePower = 0.65;
+    public double transferIntakePower = 0.2;
+    public double transferPower = 0.35; // Transfer power for shooting
     public static double TUNED_VOLTAGE = 13.0; // Tuned baseline voltage
 
     // Tunable dynamic transfer ramp-up parameters
-    public static double transferRampInitialScale = 0.2;
-    public static double transferRampFinalScale = 1.0;
-    public static double transferRampDurationSec = 0.75;
+    public static double transferRampInitialScale = 1;
+    public static double transferRampFinalScale = 2;
+    public static double transferRampDurationSec = 1;
+    public double rampScale = 0.0;
 
     public Intake(HardwareMap hardwareMap) {
         intakeMotor = hardwareMap.get(DcMotor.class, "intake");
@@ -86,7 +87,7 @@ public class Intake {
                 // Time-scaled dynamic power ramp-up
                 double elapsedSeconds = (System.currentTimeMillis() - transferStartTime) / 1000.0;
                 double rampProgress = (transferRampDurationSec <= 0) ? 1.0 : Math.min(1.0, elapsedSeconds / transferRampDurationSec);
-                double rampScale = transferRampInitialScale + (transferRampFinalScale - transferRampInitialScale) * rampProgress;
+                rampScale = transferRampInitialScale + (transferRampFinalScale - transferRampInitialScale) * rampProgress;
 
                 // Scale transfer power with battery voltage compensation relative to tuned baseline
                 double voltageScale = TUNED_VOLTAGE / getBatteryVoltage();

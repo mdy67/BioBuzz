@@ -12,7 +12,7 @@ public class MainTeleOp extends OpMode {
     private boolean lastLeftTrigger = false;
     private boolean sotmMode = false;
 
-    private double flywheelRpmOffset = -150.0;
+    private double flywheelRpmOffset = -570.0;
     private double turretAngleOffset = 0.0;
 
     // Rate limiter helper for dpad adjustments
@@ -102,6 +102,8 @@ public class MainTeleOp extends OpMode {
         }
         lastLeftTrigger = leftTriggerPressed;
 
+        long now = System.currentTimeMillis();
+
         // Turret Angle Offset adjustment via Dpad Left / Right (1 degree per press/hold)
         if (dpadLeftLimiter.shouldTrigger(gamepad1.dpad_left)) {
             turretAngleOffset -= 1.0;
@@ -120,12 +122,12 @@ public class MainTeleOp extends OpMode {
             flywheelRpmOffset -= 30.0;
         }
 
-        // 2. Shooter ALWAYS tracks the goal (Flywheel & Turret) using Quadratic Regression
-        double distanceToGoal = robot.turret.getDistanceToGoal(robot.drivetrain.robotPose);
-       // double targetRPM = Shooter.calculateRpm(distanceToGoal) + flywheelRpmOffset;
+        // 2. Shooter sets target RPM (3375 + flywheelRpmOffset) + addition of (rampscale * 0.1) power
+        double distanceToGoal = robot.turret.getDistanceToGoal(robot.drivetrain.getLocalizedPose());
+        double targetRPM = 3375.0 + flywheelRpmOffset;
 
-      //  robot.shooter.setTargetRPM(targetRPM);
-        robot.shooter.setTargetRPM(3375 + flywheelRpmOffset);
+        robot.shooter.setTargetRPM(targetRPM);
+        robot.shooter.powerBoost = robot.intake.rampScale * 0.5;
         robot.shooter.state = Shooter.State.SHOOTING;
 
         // 3. Intake and Transfer/Shoot controls (Bumpers)
@@ -137,11 +139,11 @@ public class MainTeleOp extends OpMode {
         if (isTransferring) {
             robot.intake.state = Intake.State.TRANSFERRING;
         } else if (gamepad1.left_bumper) {
+            robot.intake.rampScale = 0;
             robot.intake.state = Intake.State.INTAKING;
-        } else if (gamepad1.left_trigger > 0.1) {
-
         } else {
             robot.intake.state = Intake.State.IDLE;
+            robot.intake.rampScale = 0;
         }
 
         // 4. Turret tracking / SOTM update
@@ -168,7 +170,8 @@ public class MainTeleOp extends OpMode {
         telemetry.addData("Hood Position", robot.turret.hoodPosition);
         telemetry.addData("Turret Angle Offset (deg)", turretAngleOffset);
         telemetry.addData("Flywheel RPM Offset", flywheelRpmOffset);
-       // telemetry.addData("Target RPM (Quadratic + Offset)", targetRPM);
+        telemetry.addData("Target RPM", targetRPM);
+        telemetry.addData("Shooter Power Boost (RampScale * 0.1)", robot.shooter.powerBoost);
         telemetry.addData("Shooter Current RPM", robot.shooter.getCurrentRPM());
         telemetry.addData("Intake State", robot.intake.state);
         telemetry.addData("Gate Position", robot.turret.gatePosition);
