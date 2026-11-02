@@ -66,9 +66,9 @@ public class Turret {
 
     // True field coordinates for Goal L and Goal R
     public static double goalLX = -12.0;
-    public static double goalLY = -11.0;
+    public static double goalLY = -9.0;
     public static double goalRX = 12.0;
-    public static double goalRY = -11.0;
+    public static double goalRY = -9.0;
 
     // Simplified SOTM tuning coefficients (based on robot velocity and joystick inputs)
     public static double sotmVelKp = 0.8;
@@ -133,6 +133,12 @@ public class Turret {
         if (turretEncoder == null) return 0.0;
         int currentTicks = turretEncoder.getCurrentPosition() - encoderOffset;
         return currentTicks / TICKS_PER_TURRET_DEGREE;
+    }
+
+    public boolean isAtTargetPosition(double toleranceDeg) {
+        double currentAngle = getTurretAngleDegrees();
+        double constrainedTarget = getClosestValidTarget(targetAngle, currentAngle);
+        return Math.abs(constrainedTarget - currentAngle) <= toleranceDeg;
     }
 
     public double getDistanceToGoal(Pose2D rawPose) {

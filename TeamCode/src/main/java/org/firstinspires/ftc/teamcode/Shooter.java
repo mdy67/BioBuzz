@@ -24,13 +24,13 @@ public class Shooter {
 
     // Encoder resolution (ticks per rev on flywheel motor)
     public static double TICKS_PER_REV = 28.0;
-    public static double MAX_RPM = 4500.0;
+    public static double MAX_RPM = 3600.0;
     public static double NOMINAL_VOLTAGE = 12.0;
 
     // Target velocity in RPM and open-loop target power fallback
     public double targetRPM = 0.0;
     public double targetPower = 0.0;
-    public double powerBoost = 0.0; // Dynamic power addition (e.g. intake rampScale * 0.1)
+    public double powerBoost = 0.0;
     public boolean useVelocityPID = true;
 
     // Smooth flywheel tuning parameters optimized for 3000-4000 RPM
@@ -40,7 +40,7 @@ public class Shooter {
     public static double kF = 0.00016;
     public static double kStatic = 0.05;
     public static double MIN_POWER = 0.08;
-    public static double ACCEL_THRESHOLD_RPM = 800.0;
+    public static double ACCEL_THRESHOLD_RPM = 400.0;
     public static double DEADBAND_RPM = 20.0;
 
     // Quadratic regression coefficients for RPM based on distance to goal (inches)
@@ -95,6 +95,15 @@ public class Shooter {
 
     public void adjustRPM(double deltaRPM) {
         setTargetRPM(this.targetRPM + deltaRPM);
+    }
+
+    public boolean isAtTargetRPM(double toleranceRpm) {
+        if (targetRPM <= 0) return false;
+        return Math.abs(getCurrentRPM() - targetRPM) <= toleranceRpm;
+    }
+
+    public boolean isAtTargetRPM() {
+        return isAtTargetRPM(70.0); // 70 RPM tolerance
     }
 
     /**

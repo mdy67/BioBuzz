@@ -34,14 +34,14 @@ public class Robot {
     }
 
     /**
-     * Clean one-line action to run intake/transfer and shoot for a specified duration while updating turret/quintic RPM.
+     * Clean one-line action to run intake/transfer and shoot for a specified duration while updating turret/quintic RPM and configurable target RPM.
      */
-    public void shoot(double durationSeconds, LinearOpMode opMode) {
+    public void shoot(double durationSeconds, double targetRPM, LinearOpMode opMode) {
         ElapsedTime shootTimer = new ElapsedTime();
         shooter.state = Shooter.State.SHOOTING;
         while (opMode.opModeIsActive() && shootTimer.seconds() < durationSeconds) {
-            double distance = turret.getDistanceToGoal(drivetrain.robotPose);
-            shooter.setTargetRPM(Shooter.calculateRpm(distance));
+            shooter.setTargetRPM(targetRPM);
+            shooter.powerBoost = intake.rampScale * 0.5;
             turret.setGateTransferring(true);
             intake.state = Intake.State.TRANSFERRING;
             update();
@@ -49,6 +49,12 @@ public class Robot {
         }
         turret.setGateTransferring(false);
         intake.state = Intake.State.IDLE;
+        intake.rampScale = 0.0;
+        shooter.powerBoost = 0.0;
+    }
+
+    public void shoot(double durationSeconds, LinearOpMode opMode) {
+        shoot(durationSeconds, 3375.0, opMode);
     }
 
     public void update() {
@@ -63,7 +69,7 @@ public class Robot {
         // 1. Update Drivetrain odometry
         drivetrain.updatePosData(drivetrain.currentPinpoint);
 
-        // 2. Automatically update turret aiming based on state and raw Pinpoint pose
+        // 2. Automatically update turret aiming based on state and drivetrain robot pose
         if (turret.state == Turret.State.TRACKING) {
             turret.updateTracking(drivetrain.robotPose);
         } else if (turret.state == Turret.State.SOTM) {
