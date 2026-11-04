@@ -23,8 +23,8 @@ public class Intake {
     public DcMotor transferMotor;
     public VoltageSensor voltageSensor;
 
-    public double intakePower = 0.65;
-    public double transferIntakePower = 0.2;
+    public double intakePower = 0.75;
+    public double transferIntakePower = 0.4;
     public double transferPower = 0.35; // Transfer power for shooting
     public static double TUNED_VOLTAGE = 13.0; // Tuned baseline voltage
 
