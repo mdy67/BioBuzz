@@ -122,8 +122,8 @@ public class Drivetrain {
 
     public static double akP = 0.04;
     public static double akD = 0.001;
-    public static double hkP = 0.04;
-    public static double hkD = 0.03;
+    public static double hkP = 0.14;
+    public static double hkD = 0.004;
 
     DTSQUID xSquid = new DTSQUID(akP, akD);
     DTSQUID ySquid = new DTSQUID(akP, akD);
@@ -133,7 +133,7 @@ public class Drivetrain {
         targetPose = targetPoint;
         targetX = targetPose.getX(DistanceUnit.INCH);
         targetY = targetPose.getY(DistanceUnit.INCH);
-        targetT = Math.toRadians(targetPose.getHeading(AngleUnit.DEGREES));
+        targetT = Math.toRadians(targetPose.getHeading(AngleUnit.DEGREES) - 180);
 
         this.maxPower = maxPower;
         this.xyThreshold = xyThreshold;
@@ -148,7 +148,7 @@ public class Drivetrain {
     }
 
     public void getErrors() {
-        double heading = robotPose.getHeading(AngleUnit.RADIANS);
+        double heading = Math.toRadians(head);
         tError = Utils.headingClip(targetT - heading);
         globalXerror = (targetX - x);
         globalYerror = (targetY - y);
@@ -192,7 +192,7 @@ public class Drivetrain {
             }
         }
 
-        setWeightedMotorPowers(-forwardPower, -strafePower, turnPower);
+        setWeightedMotorPowers(forwardPower, strafePower, -turnPower);
     }
 
     public Pose2D getLocalizedPose() {
@@ -213,7 +213,7 @@ public class Drivetrain {
         robotPose = pinpoint.getPosition();
         x = robotPose.getX(DistanceUnit.INCH);
         y = robotPose.getY(DistanceUnit.INCH);
-        head = wrapAngle360(robotPose.getHeading(AngleUnit.DEGREES));
+        head = wrapAngle360(robotPose.getHeading(AngleUnit.DEGREES) + 180.0);
 
         XVel = pinpoint.getVelX(DistanceUnit.INCH);
         YVel = pinpoint.getVelY(DistanceUnit.INCH);
