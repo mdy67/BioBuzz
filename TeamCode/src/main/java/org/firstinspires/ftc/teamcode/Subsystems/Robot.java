@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.Subsystems;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -41,7 +41,8 @@ public class Robot {
         shooter.state = Shooter.State.SHOOTING;
         while (opMode.opModeIsActive() && shootTimer.seconds() < durationSeconds) {
             double distance = turret.getDistanceToGoal(drivetrain.robotPose);
-            shooter.setTargetRPM(Shooter.calculateRpm(distance));
+            shooter.setTargetRPM(targetRPM);
+            shooter.powerBoost = intake.rampScale * 0.5;
             turret.setGateTransferring(true);
             intake.state = Intake.State.TRANSFERRING;
             update();
@@ -68,6 +69,7 @@ public class Robot {
 
         // 1. Update Drivetrain odometry
         drivetrain.update();
+
         // 2. Automatically update turret aiming based on state and raw Pinpoint pose
         if (turret.state == Turret.State.TRACKING) {
             turret.updateTracking(drivetrain.robotPose);
@@ -79,5 +81,8 @@ public class Robot {
         shooter.update();
         intake.update();
         turret.update();
+
+        // 4. Save data for TeleOp transfer
+        org.firstinspires.ftc.teamcode.Utils.DataTransfer.autoUpdate(this);
     }
 }

@@ -1,7 +1,13 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.COMPopmodes;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+import org.firstinspires.ftc.teamcode.Subsystems.Intake;
+import org.firstinspires.ftc.teamcode.Subsystems.Robot;
+import org.firstinspires.ftc.teamcode.Subsystems.Shooter;
+import org.firstinspires.ftc.teamcode.Subsystems.Turret;
+import org.firstinspires.ftc.teamcode.Utils.DataTransfer;
 
 @TeleOp(name = "Main TeleOp", group = "TeleOp")
 public class MainTeleOp extends OpMode {
@@ -10,7 +16,7 @@ public class MainTeleOp extends OpMode {
     private boolean lastXButton = false;
     private boolean lastAButton = false;
     private boolean lastLeftTrigger = false;
-    private boolean sotmMode = false;
+    private boolean recoveryMode = true;
 
     private double flywheelRpmOffset = -570.0;
     private double turretAngleOffset = 0.0;
@@ -19,8 +25,8 @@ public class MainTeleOp extends OpMode {
     private static class RateLimiter {
         private long pressStartTime = 0;
         private long lastRepeatTime = 0;
-        private final long initialDelayMs = 300;
-        private final long repeatIntervalMs = 50;
+        private final long initialDelayMs = 200;
+        private final long repeatIntervalMs = 30;
 
         public boolean shouldTrigger(boolean isPressed) {
             long now = System.currentTimeMillis();
@@ -55,7 +61,7 @@ public class MainTeleOp extends OpMode {
     @Override
     public void init() {
         robot = new Robot(hardwareMap);
-        robot.drivetrain.setPosition(0.0, 0.0, 90.0); // Reset position to x:0, y:0, heading:90 at init
+        DataTransfer.teleopInit(robot); // Pull position & turret angle from Autonomous if run
         robot.turret.setGoal(Turret.Goal.GOAL_R); // Default Goal R
         robot.turret.state = Turret.State.LOCKED;
     }
@@ -78,11 +84,11 @@ public class MainTeleOp extends OpMode {
         // Toggle SOTM vs Tracking with X button
         boolean xPressed = gamepad1.x;
         if (xPressed && !lastXButton) {
-            sotmMode = !sotmMode;
+            recoveryMode = !recoveryMode;
         }
         lastXButton = xPressed;
 
-        robot.turret.state = sotmMode ? Turret.State.SOTM : Turret.State.TRACKING;
+        robot.turret.state = recoveryMode ? Turret.State.SOTM : Turret.State.TRACKING;
 
         // Reset Drivetrain Position & Heading on A Button press (x: 0, y: -65, heading: 90)
         boolean aPressed = gamepad1.a;
@@ -165,7 +171,7 @@ public class MainTeleOp extends OpMode {
         telemetry.addData("Field Y Position (in)", robot.drivetrain.y);
         telemetry.addData("Field Heading (deg)", robot.drivetrain.head);
         telemetry.addData("Active Goal", robot.turret.currentGoal);
-        telemetry.addData("Turret Mode", sotmMode ? "SOTM" : "Tracking");
+        telemetry.addData("Turret Mode", recoveryMode ? "SOTM" : "Tracking");
         telemetry.addData("Distance to Goal (in)", distanceToGoal);
         telemetry.addData("Hood Position", robot.turret.hoodPosition);
         telemetry.addData("Turret Angle Offset (deg)", turretAngleOffset);

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.Subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -126,6 +126,12 @@ public class Turret {
     public void resetEncoder() {
         if (turretEncoder != null) {
             encoderOffset = turretEncoder.getCurrentPosition();
+        }
+    }
+
+    public void setTurretAngleDegrees(double angleDegrees) {
+        if (turretEncoder != null) {
+            encoderOffset = turretEncoder.getCurrentPosition() - (int)(angleDegrees * TICKS_PER_TURRET_DEGREE);
         }
     }
 
@@ -318,6 +324,8 @@ public class Turret {
 
         switch (state) {
             case LOCKED:
+                setLockAngle(0);
+                updatePID();
             case TRACKING:
             case SOTM:
                 updatePID();
