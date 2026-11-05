@@ -65,7 +65,7 @@ public class MainTeleOp extends OpMode {
         // 1. Drivetrain control (Pinpoint 1) with reversed forward/backwards and right trigger slow mode (0.3x)
         double strafe = gamepad1.left_stick_x;
         double forward = gamepad1.left_stick_y; // Reversed: positive stick forward
-        double turn = gamepad1.right_stick_x * 1;
+        double turn = gamepad1.right_stick_x * 0.85;
 
         double speedMultiplier = (gamepad1.right_trigger > 0.1) ? 0.3 : 1.0;
 

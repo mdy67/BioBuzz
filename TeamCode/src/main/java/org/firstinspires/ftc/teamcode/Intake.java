@@ -24,7 +24,7 @@ public class Intake {
     public VoltageSensor voltageSensor;
 
     public double intakePower = 0.75;
-    public double transferIntakePower = 0.4;
+    public double transferIntakePower = 0.3;
     public double transferPower = 0.35; // Transfer power for shooting
     public static double TUNED_VOLTAGE = 13.0; // Tuned baseline voltage
 
