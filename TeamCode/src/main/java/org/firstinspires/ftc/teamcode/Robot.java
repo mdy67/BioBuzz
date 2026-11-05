@@ -67,13 +67,12 @@ public class Robot {
         lastLoopTime = now;
 
         // 1. Update Drivetrain odometry
-        drivetrain.updatePosData(drivetrain.currentPinpoint);
-
+        drivetrain.update();
         // 2. Automatically update turret aiming based on state and raw Pinpoint pose
         if (turret.state == Turret.State.TRACKING) {
             turret.updateTracking(drivetrain.robotPose);
-        } else if (turret.state == Turret.State.SOTM) {
-            turret.updateSOTM(drivetrain.robotPose, drivetrain.XVel, drivetrain.YVel, 0.0, 0.0);
+        } else {
+            turret.state = Turret.State.IDLE;
         }
 
         // 3. Update all physical subsystems

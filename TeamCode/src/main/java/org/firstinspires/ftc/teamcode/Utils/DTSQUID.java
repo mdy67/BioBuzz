@@ -35,7 +35,8 @@ public class DTSQUID {
         counter++;
 
         output = proportion + derivative;
-        return Math.sqrt(Math.abs(output) * Math.signum(output));
+        // Fix: take Math.sqrt of the absolute value, then apply signum so negative outputs do not return NaN
+        return Math.sqrt(Math.abs(output)) * Math.signum(output);
     }
 
 }
