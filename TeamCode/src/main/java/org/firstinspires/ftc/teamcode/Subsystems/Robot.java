@@ -40,7 +40,6 @@ public class Robot {
         ElapsedTime shootTimer = new ElapsedTime();
         shooter.state = Shooter.State.SHOOTING;
         while (opMode.opModeIsActive() && shootTimer.seconds() < durationSeconds) {
-            double distance = turret.getDistanceToGoal(drivetrain.robotPose);
             shooter.setTargetRPM(targetRPM);
             shooter.powerBoost = intake.rampScale * 0.5;
             turret.setGateTransferring(true);

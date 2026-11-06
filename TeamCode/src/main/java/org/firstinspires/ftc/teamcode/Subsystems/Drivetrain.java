@@ -120,8 +120,8 @@ public class Drivetrain {
     public double globalXerror, globalYerror;
     public boolean atX, atY, atT;
 
-    public static double akP = 0.04;
-    public static double akD = 0.001;
+    public static double akP = 0.03;
+    public static double akD = 0.002;
     public static double hkP = 0.14;
     public static double hkD = 0.004;
 

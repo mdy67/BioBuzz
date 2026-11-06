@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.Subsystems;
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 @Config
@@ -21,6 +22,7 @@ public class Intake {
 
     public DcMotor intakeMotor;
     public DcMotor transferMotor;
+    public Servo flowerServo;
     public VoltageSensor voltageSensor;
 
     public double intakePower = 0.75;
@@ -32,6 +34,9 @@ public class Intake {
     public static double transferRampInitialScale = 1;
     public static double transferRampFinalScale = 2;
     public static double transferRampDurationSec = 1;
+    public static double FLOWER_UP = 0.47;
+    public static double FLOWER_Down = 0.0;
+    public boolean flowerUp = false;
     public double rampScale = 0.0;
 
     public Intake(HardwareMap hardwareMap) {
@@ -43,6 +48,14 @@ public class Intake {
 
         transferMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         transferMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        try {
+            flowerServo = hardwareMap.get(Servo.class, "flower");
+            flowerUp = true;
+            flowerServo.setPosition(FLOWER_UP);
+        } catch (Exception e) {
+            flowerServo = null;
+        }
 
         if (hardwareMap.voltageSensor.iterator().hasNext()) {
             voltageSensor = hardwareMap.voltageSensor.iterator().next();
@@ -65,12 +78,38 @@ public class Intake {
         setTransferPower(this.transferPower + delta);
     }
 
+    public void setFlowerUp() {
+        flowerUp = true;
+        if (flowerServo != null) {
+            flowerServo.setPosition(FLOWER_UP);
+        }
+    }
+
+    public void setFlowerDown() {
+        flowerUp = false;
+        if (flowerServo != null) {
+            flowerServo.setPosition(FLOWER_Down);
+        }
+    }
+
+    public void toggleFlower() {
+        if (flowerUp) {
+            setFlowerDown();
+        } else {
+            setFlowerUp();
+        }
+    }
+
     public void update() {
         // Track transition into TRANSFERRING state
         if (state == State.TRANSFERRING && lastState != State.TRANSFERRING) {
             transferStartTime = System.currentTimeMillis();
         }
         lastState = state;
+
+        if (flowerServo != null) {
+            flowerServo.setPosition(flowerUp ? FLOWER_UP : FLOWER_Down);
+        }
 
         switch (state) {
             case INTAKING:

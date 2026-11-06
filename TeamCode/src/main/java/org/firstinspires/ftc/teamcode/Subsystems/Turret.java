@@ -78,7 +78,7 @@ public class Turret {
     public static double kP = 0.0007;
     public static double kI = 0.0008;
     public static double kD = 0.00008;
-    public static double kS = 0.05; // Static friction compensation at 13.2V
+    public static double kS = 0.04; // Static friction compensation at 13.2V
     public static double servoInvert = 1.0; // No servo inversion as requested
     public static double turretBaseOffsetDeg = 0.0; // Tunable base heading offset
     public static double TUNED_VOLTAGE = 13.2;
@@ -124,15 +124,13 @@ public class Turret {
     }
 
     public void resetEncoder() {
-        if (turretEncoder != null) {
-            encoderOffset = turretEncoder.getCurrentPosition();
-        }
+        encoderOffset = turretEncoder.getCurrentPosition();
+
     }
 
     public void setTurretAngleDegrees(double angleDegrees) {
-        if (turretEncoder != null) {
-            encoderOffset = turretEncoder.getCurrentPosition() - (int)(angleDegrees * TICKS_PER_TURRET_DEGREE);
-        }
+        encoderOffset = turretEncoder.getCurrentPosition() - (int)(angleDegrees * TICKS_PER_TURRET_DEGREE);
+
     }
 
     public double getTurretAngleDegrees() {
@@ -324,13 +322,12 @@ public class Turret {
 
         switch (state) {
             case LOCKED:
-                setLockAngle(0);
-                updatePID();
             case TRACKING:
             case SOTM:
-                updatePID();
                 break;
             case IDLE:
+                integralSum = 0;
+                break;
             default:
                 if (turretServo1 != null) turretServo1.setPower(0.0);
                 if (turretServo2 != null) turretServo2.setPower(0.0);

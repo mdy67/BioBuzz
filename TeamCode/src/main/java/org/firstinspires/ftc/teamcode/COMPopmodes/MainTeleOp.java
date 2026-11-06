@@ -14,19 +14,23 @@ public class MainTeleOp extends OpMode {
 
     private Robot robot;
     private boolean lastXButton = false;
+    private boolean lastYButton = false;
     private boolean lastAButton = false;
+    private boolean lastBButton = false;
     private boolean lastLeftTrigger = false;
-    private boolean recoveryMode = true;
+    private boolean teleopStarted = false;
+    private boolean recoveryMode = false;
 
     private double flywheelRpmOffset = -570.0;
-    private double turretAngleOffset = 0.0;
+    private double turretAngleOffsetGoalL = 0.0;
+    private double turretAngleOffsetGoalR = 0.0;
 
     // Rate limiter helper for dpad adjustments
     private static class RateLimiter {
         private long pressStartTime = 0;
         private long lastRepeatTime = 0;
-        private final long initialDelayMs = 200;
-        private final long repeatIntervalMs = 30;
+        private final long initialDelayMs = 120;
+        private final long repeatIntervalMs = 15;
 
         public boolean shouldTrigger(boolean isPressed) {
             long now = System.currentTimeMillis();
@@ -63,7 +67,31 @@ public class MainTeleOp extends OpMode {
         robot = new Robot(hardwareMap);
         DataTransfer.teleopInit(robot); // Pull position & turret angle from Autonomous if run
         robot.turret.setGoal(Turret.Goal.GOAL_R); // Default Goal R
-        robot.turret.state = Turret.State.LOCKED;
+        robot.turret.state = Turret.State.IDLE;   // Default turret state is IDLE
+        robot.shooter.state = Shooter.State.IDLE;
+        teleopStarted = false;
+    }
+
+    @Override
+    public void init_loop() {
+        DataTransfer.teleopInit(robot); // Continuously sync transferred position during init
+        robot.drivetrain.update();      // Update odometry so telemetry displays live values
+
+        telemetry.addData("Status", "Init Loop: Waiting for Start");
+        telemetry.addData("DataTransfer HasRunAuto", DataTransfer.hasRunAuto);
+        telemetry.addData("Transferred X", DataTransfer.autoX);
+        telemetry.addData("Transferred Y", DataTransfer.autoY);
+        telemetry.addData("Transferred Heading", DataTransfer.autoHeading);
+        telemetry.addData("Transferred Turret Angle", DataTransfer.autoTurretAngle);
+        telemetry.addData("Live X Position (in)", robot.drivetrain.x);
+        telemetry.addData("Live Y Position (in)", robot.drivetrain.y);
+        telemetry.addData("Live Heading (deg)", robot.drivetrain.head);
+        telemetry.addData("Active Goal", robot.turret.currentGoal);
+        telemetry.update();
+    }
+
+    public double getActiveTurretOffset() {
+        return (robot.turret.currentGoal == Turret.Goal.GOAL_L) ? turretAngleOffsetGoalL : turretAngleOffsetGoalR;
     }
 
     @Override
@@ -81,14 +109,18 @@ public class MainTeleOp extends OpMode {
                 turn * speedMultiplier
         );
 
-        // Toggle SOTM vs Tracking with X button
+        // Toggle teleop start / SOTM vs Tracking with X button
         boolean xPressed = gamepad1.x;
         if (xPressed && !lastXButton) {
-            recoveryMode = !recoveryMode;
+            if (!teleopStarted) {
+                teleopStarted = true;
+            } else {
+                recoveryMode = !recoveryMode;
+            }
         }
         lastXButton = xPressed;
 
-        robot.turret.state = recoveryMode ? Turret.State.SOTM : Turret.State.TRACKING;
+        robot.turret.state = recoveryMode || !teleopStarted ? Turret.State.IDLE : Turret.State.TRACKING;
 
         // Reset Drivetrain Position & Heading on A Button press (x: 0, y: -65, heading: 90)
         boolean aPressed = gamepad1.a;
@@ -110,15 +142,27 @@ public class MainTeleOp extends OpMode {
 
         long now = System.currentTimeMillis();
 
-        // Turret Angle Offset adjustment via Dpad Left / Right (1 degree per press/hold)
+        // Goal-Specific Turret Angle Offset adjustment via Dpad Left / Right
+        // 3 degrees each time during IDLE mode, 1 degree during tracking
+        double angleStep = (robot.turret.state == Turret.State.IDLE) ? 3.0 : 1.0;
+
         if (dpadLeftLimiter.shouldTrigger(gamepad1.dpad_left)) {
-            turretAngleOffset -= 1.0;
-            Turret.turretBaseOffsetDeg = turretAngleOffset;
+            if (robot.turret.currentGoal == Turret.Goal.GOAL_L) {
+                turretAngleOffsetGoalL -= angleStep;
+            } else {
+                turretAngleOffsetGoalR -= angleStep;
+            }
         }
         if (dpadRightLimiter.shouldTrigger(gamepad1.dpad_right)) {
-            turretAngleOffset += 1.0;
-            Turret.turretBaseOffsetDeg = turretAngleOffset;
+            if (robot.turret.currentGoal == Turret.Goal.GOAL_L) {
+                turretAngleOffsetGoalL += angleStep;
+            } else {
+                turretAngleOffsetGoalR += angleStep;
+            }
         }
+
+        // Apply active goal turret base offset
+        Turret.turretBaseOffsetDeg = getActiveTurretOffset();
 
         // Flywheel RPM offset adjustment via Dpad Up / Down
         if (dpadUpLimiter.shouldTrigger(gamepad1.dpad_up)) {
@@ -128,17 +172,17 @@ public class MainTeleOp extends OpMode {
             flywheelRpmOffset -= 30.0;
         }
 
-        // 2. Shooter sets target RPM (3375 + flywheelRpmOffset) + addition of (rampscale * 0.1) power
+        // 2. Shooter sets target RPM (3375 + flywheelRpmOffset) + addition of (rampscale * 0.5) power
         double distanceToGoal = robot.turret.getDistanceToGoal(robot.drivetrain.getLocalizedPose());
         double targetRPM = 3375.0 + flywheelRpmOffset;
 
-        robot.shooter.setTargetRPM(targetRPM);
+        if (teleopStarted) {
+            robot.shooter.setTargetRPM(targetRPM);
+            robot.shooter.state = Shooter.State.SHOOTING;
+        }
         robot.shooter.powerBoost = robot.intake.rampScale * 0.5;
-        robot.shooter.state = Shooter.State.SHOOTING;
 
         // 3. Intake and Transfer/Shoot controls (Bumpers)
-        // - Left bumper: Intake
-        // - Right bumper: Transfer and shoot wiffle balls (opens gate)
         boolean isTransferring = gamepad1.right_bumper;
         robot.turret.setGateTransferring(isTransferring);
 
@@ -152,21 +196,26 @@ public class MainTeleOp extends OpMode {
             robot.intake.rampScale = 0;
         }
 
-        // 4. Turret tracking / SOTM update
-        if (robot.turret.state == Turret.State.SOTM) {
-            robot.turret.updateSOTM(
-                    robot.drivetrain.robotPose,
-                    robot.drivetrain.XVel, robot.drivetrain.YVel,
-                    strafe, forward
-            );
-        } else if (robot.turret.state == Turret.State.TRACKING) {
+// Toggle flower servo between flowerUp and flowerDown with Button B
+        boolean bPressed = gamepad1.b;
+        if (bPressed && !lastBButton) {
+            if (robot.intake.flowerUp) {
+                robot.intake.setFlowerDown();
+            } else {
+                robot.intake.setFlowerUp();
+            }
+        }
+        lastBButton = bPressed;
+
+        if (robot.turret.state == Turret.State.TRACKING) {
             robot.turret.updateTracking(robot.drivetrain.robotPose);
         }
 
         // 5. Periodic update of all subsystems (Pinpoint 1)
         robot.update();
 
-        // Telemetry (including Field X, Y, and Heading)
+        // Telemetry
+        telemetry.addData("Teleop Started?", teleopStarted);
         telemetry.addData("Field X Position (in)", robot.drivetrain.x);
         telemetry.addData("Field Y Position (in)", robot.drivetrain.y);
         telemetry.addData("Field Heading (deg)", robot.drivetrain.head);
@@ -174,13 +223,13 @@ public class MainTeleOp extends OpMode {
         telemetry.addData("Turret Mode", recoveryMode ? "SOTM" : "Tracking");
         telemetry.addData("Distance to Goal (in)", distanceToGoal);
         telemetry.addData("Hood Position", robot.turret.hoodPosition);
-        telemetry.addData("Turret Angle Offset (deg)", turretAngleOffset);
+        telemetry.addData("Active Goal Turret Offset (deg)", getActiveTurretOffset());
         telemetry.addData("Flywheel RPM Offset", flywheelRpmOffset);
         telemetry.addData("Target RPM", targetRPM);
-        telemetry.addData("Shooter Power Boost (RampScale * 0.1)", robot.shooter.powerBoost);
         telemetry.addData("Shooter Current RPM", robot.shooter.getCurrentRPM());
         telemetry.addData("Intake State", robot.intake.state);
         telemetry.addData("Gate Position", robot.turret.gatePosition);
+        telemetry.addData("Flower Position", robot.intake.flowerServo != null ? robot.intake.flowerServo.getPosition() : "N/A");
         telemetry.addData("Turret Angle (deg)", robot.turret.getTurretAngleDegrees());
         telemetry.addData("Loop Frequency (Hz)", robot.loopHz);
         telemetry.update();

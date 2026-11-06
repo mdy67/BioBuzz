@@ -26,7 +26,7 @@ public class DataTransfer {
     public static void teleopInit(Robot robot) {
         if (hasRunAuto && robot != null) {
             if (robot.drivetrain != null) {
-                robot.drivetrain.setPosition(autoX, autoY, autoHeading);
+                robot.drivetrain.setPosition(autoX, autoY, autoHeading+180);
             }
             if (robot.turret != null) {
                 robot.turret.setTurretAngleDegrees(autoTurretAngle);
