@@ -25,15 +25,15 @@ public class Intake {
     public Servo flowerServo;
     public VoltageSensor voltageSensor;
 
-    public double intakePower = 0.75;
-    public double transferIntakePower = 0.3;
-    public double transferPower = 0.35; // Transfer power for shooting
+    public double intakePower = 0.7;
+    public double transferIntakePower = 0.25;
+    public double transferPower = 0.75; // Transfer power for shooting
     public static double TUNED_VOLTAGE = 13.0; // Tuned baseline voltage
 
     // Tunable dynamic transfer ramp-up parameters
-    public static double transferRampInitialScale = 1;
-    public static double transferRampFinalScale = 2;
-    public static double transferRampDurationSec = 1;
+    public static double transferRampInitialScale = 0.2;
+    public static double transferRampFinalScale = 1.0;
+    public static double transferRampDurationSec = 0.6;
     public static double FLOWER_UP = 0.47;
     public static double FLOWER_Down = 0.0;
     public boolean flowerUp = false;
@@ -131,7 +131,7 @@ public class Intake {
                 // Scale transfer power with battery voltage compensation relative to tuned baseline
                 double voltageScale = TUNED_VOLTAGE / getBatteryVoltage();
                 double scaledTransferPower = Math.min(1.0, transferPower * voltageScale * rampScale);
-                double scaledIntakePower = intakePower * 1.3 * rampScale;
+                double scaledIntakePower = intakePower * 1.4 * rampScale;
 
                 intakeMotor.setPower(scaledIntakePower);
                 transferMotor.setPower(-scaledTransferPower);

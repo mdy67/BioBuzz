@@ -125,12 +125,18 @@ public class Turret {
 
     public void resetEncoder() {
         encoderOffset = turretEncoder.getCurrentPosition();
+    }
 
+    public void setEncoderOffset(int offset) {
+        this.encoderOffset = offset;
+    }
+
+    public int getEncoderOffset() {
+        return this.encoderOffset;
     }
 
     public void setTurretAngleDegrees(double angleDegrees) {
         encoderOffset = turretEncoder.getCurrentPosition() - (int)(angleDegrees * TICKS_PER_TURRET_DEGREE);
-
     }
 
     public double getTurretAngleDegrees() {

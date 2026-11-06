@@ -82,7 +82,7 @@ public class MainTeleOp extends OpMode {
         telemetry.addData("Transferred X", DataTransfer.autoX);
         telemetry.addData("Transferred Y", DataTransfer.autoY);
         telemetry.addData("Transferred Heading", DataTransfer.autoHeading);
-        telemetry.addData("Transferred Turret Angle", DataTransfer.autoTurretAngle);
+        telemetry.addData("Transferred Turret Encoder Offset", DataTransfer.autoEncoderOffset);
         telemetry.addData("Live X Position (in)", robot.drivetrain.x);
         telemetry.addData("Live Y Position (in)", robot.drivetrain.y);
         telemetry.addData("Live Heading (deg)", robot.drivetrain.head);

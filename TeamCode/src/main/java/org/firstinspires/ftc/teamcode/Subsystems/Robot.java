@@ -39,9 +39,11 @@ public class Robot {
     public void shoot(double durationSeconds, double targetRPM, LinearOpMode opMode) {
         ElapsedTime shootTimer = new ElapsedTime();
         shooter.state = Shooter.State.SHOOTING;
+        intake.rampScale = 0.0;
+        shooter.powerBoost = 0.0;
         while (opMode.opModeIsActive() && shootTimer.seconds() < durationSeconds) {
             shooter.setTargetRPM(targetRPM);
-            shooter.powerBoost = intake.rampScale * 0.5;
+            shooter.powerBoost = intake.rampScale * 0.5; // Balanced power boost (0.1 max)
             turret.setGateTransferring(true);
             intake.state = Intake.State.TRANSFERRING;
             update();
@@ -54,7 +56,7 @@ public class Robot {
     }
 
     public void shoot(double durationSeconds, LinearOpMode opMode) {
-        shoot(durationSeconds, 3375.0, opMode);
+        shoot(durationSeconds, (shooter.targetRPM > 0 ? shooter.targetRPM : 3375.0 - 570), opMode);
     }
 
     public void update() {

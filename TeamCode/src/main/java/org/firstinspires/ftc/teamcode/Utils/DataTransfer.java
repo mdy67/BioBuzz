@@ -1,12 +1,13 @@
 package org.firstinspires.ftc.teamcode.Utils;
 
+import org.firstinspires.ftc.teamcode.Subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.Subsystems.Robot;
 
 public class DataTransfer {
     public static double autoX = 0.0;
     public static double autoY = 0.0;
     public static double autoHeading = 0.0;
-    public static double autoTurretAngle = 0.0;
+    public static int autoEncoderOffset = 0;
     public static boolean hasRunAuto = false;
 
     public static void autoUpdate(Robot robot) {
@@ -14,10 +15,10 @@ public class DataTransfer {
             if (robot.drivetrain != null) {
                 autoX = robot.drivetrain.x;
                 autoY = robot.drivetrain.y;
-                autoHeading = robot.drivetrain.head;
+                autoHeading = Drivetrain.wrapAngle360(robot.drivetrain.head);
             }
             if (robot.turret != null) {
-                autoTurretAngle = robot.turret.getTurretAngleDegrees();
+                autoEncoderOffset = robot.turret.getEncoderOffset();
             }
             hasRunAuto = true;
         }
@@ -29,7 +30,7 @@ public class DataTransfer {
                 robot.drivetrain.setPosition(autoX, autoY, autoHeading+180);
             }
             if (robot.turret != null) {
-                robot.turret.setTurretAngleDegrees(autoTurretAngle);
+                robot.turret.setEncoderOffset(autoEncoderOffset);
             }
         }
     }
